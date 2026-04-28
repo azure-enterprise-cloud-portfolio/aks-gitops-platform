@@ -85,7 +85,7 @@ jobs:
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     runs-on: ubuntu-latest
     # Pauses here for manual approval — configure reviewers in Settings → Environments
-    environment: platform-production
+    environment: platform-shared  # was: platform-production
 
     steps:
       - uses: actions/checkout@v4
