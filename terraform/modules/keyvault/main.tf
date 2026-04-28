@@ -18,7 +18,7 @@ resource "azurerm_key_vault" "this" {
   purge_protection_enabled   = true
   soft_delete_retention_days = 7
 
-  enable_rbac_authorization = true
+  rbac_authorization_enabled = true  # was: enable_rbac_authorization
 
   tags = var.tags
 }

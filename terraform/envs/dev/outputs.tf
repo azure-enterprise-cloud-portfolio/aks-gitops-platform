@@ -1,19 +1,21 @@
-output "dev_resource_group_name" {
-  description = "Dev workload Resource Group name"
-  value       = module.rg.name
+# ACR
+output "acr_id" {
+  description = "Container registry ID"
+  value       = module.acr.acr_id  # or acr_id, registry_id — check your module outputs
 }
 
-output "dev_vnet_id" {
-  description = "Dev Spoke VNet ID"
-  value       = module.network.vnet_id
+output "acr_login_server" {
+  description = "Container registry login server URL"
+  value       = module.acr.login_server
 }
 
-output "aks_name" {
-  description = "AKS cluster name"
-  value       = module.aks.name
+# Key Vault
+output "key_vault_id" {
+  description = "Key Vault ID"
+  value       = module.kv.key_vault_id  # check your module outputs
 }
 
-output "aks_id" {
-  description = "AKS cluster ID"
-  value       = module.aks.id
+output "key_vault_uri" {
+  description = "Key Vault URI"
+  value       = module.kv.key_vault_uri  # check your module outputs
 }
