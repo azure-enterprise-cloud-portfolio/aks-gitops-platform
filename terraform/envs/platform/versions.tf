@@ -8,7 +8,7 @@ terraform {
     storage_account_name = "stcstfstatecac001"
     container_name       = "tfstate"
     key                  = "platform/terraform.tfstate"
-    use_oidc             = true  # ← add this 
+    use_oidc             = true # ← add this 
   }
 
   required_providers {
