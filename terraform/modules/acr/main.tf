@@ -11,7 +11,7 @@ resource "azurerm_container_registry" "this" {
   location            = var.location
   sku                 = var.sku
 
-  admin_enabled       = false  # Security best practice
+  admin_enabled = false # Security best practice
 
   tags = var.tags
 }
