@@ -50,9 +50,14 @@ jobs:
         run: terraform fmt -check -recursive
 
       - name: Terraform Init
-        # use_oidc=true forces Service Principal auth for the backend — prevents CLI auth fallback
+        # Passes OIDC credentials explicitly to the backend — prevents CLI auth fallback
         working-directory: ${{ env.TF_WORKING_DIR }}
-        run: terraform init -backend-config="use_oidc=true"
+        run: |
+          terraform init \
+            -backend-config="use_oidc=true" \
+            -backend-config="client_id=${{ secrets.AZURE_CLIENT_ID }}" \
+            -backend-config="tenant_id=${{ secrets.AZURE_TENANT_ID }}" \
+            -backend-config="subscription_id=${{ secrets.AZURE_PLATFORM_SUBSCRIPTION_ID }}"
 
       - name: Terraform Validate
         working-directory: ${{ env.TF_WORKING_DIR }}
@@ -100,7 +105,12 @@ jobs:
 
       - name: Terraform Init
         working-directory: ${{ env.TF_WORKING_DIR }}
-        run: terraform init -backend-config="use_oidc=true"
+        run: |
+          terraform init \
+            -backend-config="use_oidc=true" \
+            -backend-config="client_id=${{ secrets.AZURE_CLIENT_ID }}" \
+            -backend-config="tenant_id=${{ secrets.AZURE_TENANT_ID }}" \
+            -backend-config="subscription_id=${{ secrets.AZURE_PLATFORM_SUBSCRIPTION_ID }}"
 
       - name: Download Plan Artifact
         # Applies exactly what was planned — no drift between plan and apply
