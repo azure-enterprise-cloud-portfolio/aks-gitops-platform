@@ -1,0 +1,163 @@
+# =============================================================================
+# Terraform Workloads Destroy Workflow
+# Manual trigger only — never runs automatically.
+# Requires typing "destroy" to confirm and manual approval via GitHub environment.
+#
+# Safety gates:
+#   1. workflow_dispatch input must equal "destroy"
+#   2. plan-destroy job shows exactly what will be destroyed
+#   3. Manual approval required via workload-dev environment
+# =============================================================================
+
+name: Terraform Workloads Destroy
+
+on:
+  workflow_dispatch: # Manual trigger only — never runs automatically
+    inputs:
+      confirm:
+        description: 'Type "destroy" to confirm destruction of dev workload resources'
+        required: true
+      environment:
+        description: "Target environment to destroy (dev)"
+        required: true
+        default: "dev"
+        type: choice
+        options:
+          - dev
+          # - test   # uncomment when test environment is ready
+          # - prod   # uncomment when prod environment is ready
+
+# OIDC auth requires id-token write; contents read for checkout
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  TF_VERSION: "1.14.3" # Align with required_version in versions.tf
+
+jobs:
+  # ===========================================================================
+  # Plan Destroy
+  # Shows exactly what will be destroyed before the approval gate.
+  # Only runs when confirm input equals "destroy".
+  # ===========================================================================
+  plan-destroy:
+    name: Plan Destroy (${{ github.event.inputs.environment }})
+    runs-on: ubuntu-latest
+    if: github.event.inputs.confirm == 'destroy'
+
+    env:
+      TF_WORKING_DIR: terraform/envs/${{ github.event.inputs.environment }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Azure Login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_DEV_SUBSCRIPTION_ID }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+          terraform_wrapper: false # Required for exit codes to work correctly
+
+      - name: Terraform Init
+        # Backend lives in platform subscription — pass platform subscription ID for state access
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: |
+          terraform init \
+            -backend-config="use_oidc=true" \
+            -backend-config="client_id=${{ secrets.AZURE_CLIENT_ID }}" \
+            -backend-config="tenant_id=${{ secrets.AZURE_TENANT_ID }}" \
+            -backend-config="subscription_id=${{ secrets.AZURE_PLATFORM_SUBSCRIPTION_ID }}"
+
+      - name: Terraform Plan Destroy
+        # Shows exactly what will be destroyed before the approval gate
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: |
+          set +e
+          terraform plan -destroy -detailed-exitcode -out=tfplan-destroy
+          exit_code=$?
+          echo "Terraform plan destroy exit code: $exit_code"
+          if [ $exit_code -eq 1 ]; then
+            echo "Terraform plan destroy failed with error"
+            exit 1
+          fi
+          echo "Terraform plan destroy succeeded"
+          exit 0
+        env:
+          TF_VAR_dev_subscription_id:      ${{ secrets.AZURE_DEV_SUBSCRIPTION_ID }}
+          TF_VAR_platform_subscription_id: ${{ secrets.AZURE_PLATFORM_SUBSCRIPTION_ID }}
+
+      - name: Upload Destroy Plan Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: tfplan-destroy-${{ github.event.inputs.environment }}
+          path: ${{ env.TF_WORKING_DIR }}/tfplan-destroy
+          retention-days: 1
+
+  # ===========================================================================
+  # Destroy
+  # Runs only after plan-destroy succeeds and manual approval is granted.
+  # Applies exactly the destroy plan — no drift between plan and destroy.
+  # ===========================================================================
+  destroy:
+    name: Terraform Destroy (${{ github.event.inputs.environment }})
+    needs: plan-destroy
+    runs-on: ubuntu-latest
+
+    # Manual approval gate — configure reviewers in GitHub Settings → Environments
+    # Destroy will not proceed until a reviewer approves
+    environment: workload-${{ github.event.inputs.environment }}
+
+    env:
+      TF_WORKING_DIR: terraform/envs/${{ github.event.inputs.environment }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Azure Login (OIDC)
+        # OIDC tokens are job-scoped — must re-authenticate in every job
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_DEV_SUBSCRIPTION_ID }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+          terraform_wrapper: false
+
+      - name: Terraform Init
+        # Re-init required — each job runs on a fresh runner with no local state
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: |
+          terraform init \
+            -backend-config="use_oidc=true" \
+            -backend-config="client_id=${{ secrets.AZURE_CLIENT_ID }}" \
+            -backend-config="tenant_id=${{ secrets.AZURE_TENANT_ID }}" \
+            -backend-config="subscription_id=${{ secrets.AZURE_PLATFORM_SUBSCRIPTION_ID }}"
+
+      - name: Download Destroy Plan Artifact
+        # Downloads exactly the plan produced by plan-destroy
+        # Guarantees destroy matches what was reviewed and approved
+        uses: actions/download-artifact@v4
+        with:
+          name: tfplan-destroy-${{ github.event.inputs.environment }}
+          path: ${{ env.TF_WORKING_DIR }}
+
+      - name: Terraform Destroy
+        # -auto-approve is safe here — destroy plan was already reviewed and manually approved
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: terraform apply -auto-approve tfplan-destroy
+        env:
+          TF_VAR_dev_subscription_id:      ${{ secrets.AZURE_DEV_SUBSCRIPTION_ID }}
+          TF_VAR_platform_subscription_id: ${{ secrets.AZURE_PLATFORM_SUBSCRIPTION_ID }}
