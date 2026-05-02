@@ -104,6 +104,14 @@ variable "upgrade_channel" {
   }
 }
 
+# ── AAD Integration ───────────────────────────────────────────────────────────
+
+variable "admin_group_object_ids" {
+  description = "List of Azure AD group object IDs granted cluster-admin access. Required when local_account_disabled = true."
+  type        = list(string)
+  default     = []
+}
+
 # ── Monitoring ────────────────────────────────────────────────────────────────
 
 # variable "log_analytics_workspace_id" {

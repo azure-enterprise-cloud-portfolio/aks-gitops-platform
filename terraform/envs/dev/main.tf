@@ -60,6 +60,7 @@ module "network" {
 #
 # node_count                 : kept low for dev — scale up for test/prod
 # vm_size                    : Standard_DS2_v2 sufficient for dev workloads
+# admin_group_object_ids     : resolved dynamically from AAD group via data.tf
 # log_analytics_workspace_id : sourced from platform remote state — reuses
 #                              shared platform Log Analytics workspace
 # =============================================================================
@@ -78,6 +79,10 @@ module "aks" {
 
   node_count = 2
   vm_size    = "Standard_DS2_v2"
+
+  # AAD admin group — resolved dynamically from Azure AD via data.azuread_group
+  # grants cluster-admin access to the AKS admins group
+  admin_group_object_ids = [data.azuread_group.aks_admins.object_id]
 
   # Sourced from platform remote state — reuses shared Log Analytics workspace
   # avoids deploying a separate workspace per environment

@@ -37,6 +37,10 @@ terraform {
       source  = "hashicorp/azurerm"
       version = "~> 4.0" # Allows 4.x minor/patch updates, blocks 5.x breaking changes
     }
+    azuread = {
+      source  = "hashicorp/azuread"
+      version = "~> 3.0" # Aligns with azurerm 4.x — use 2.x if on older azurerm
+    }
   }
 }
 
@@ -71,4 +75,14 @@ provider "azurerm" {
   subscription_id = var.platform_subscription_id
   use_oidc        = true
   features {}
+}
+
+# =============================================================================
+# Provider: Azure AD
+# Used to look up AAD groups dynamically — avoids hardcoding Object IDs.
+# Inherits OIDC authentication from the pipeline service principal.
+# Ensure the SP has Directory.Read.All or Group.Read.All in Azure AD.
+# =============================================================================
+provider "azuread" {
+  use_oidc = true
 }

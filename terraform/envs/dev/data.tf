@@ -18,3 +18,13 @@ data "terraform_remote_state" "platform" {
     key                  = "platform/terraform.tfstate" # Platform state — separate from dev
   }
 }
+
+# =============================================================================
+# AAD Group Lookup
+# Reads the AKS admin group from Azure AD by display name.
+# Avoids hardcoding Object IDs — group is resolved dynamically at plan time.
+# =============================================================================
+data "azuread_group" "aks_admins" {
+  display_name     = "admin"
+  security_enabled = true
+}
