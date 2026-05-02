@@ -1,7 +1,16 @@
+# =============================================================================
+# Terraform Workloads Workflow
+# Runs plan on every PR and push to main.
+# Applies only on push to main — dev auto-deploys, no manual approval needed.
+#
+# Auth: OIDC federated credentials — no client secrets stored in GitHub.
+# State: Stored in Azure Blob Storage in platform subscription.
+# Concurrency: Shared group with platform workflow — prevents state lock conflicts.
+# =============================================================================
+
 name: Terraform Workloads
 
 on:
-  # Plan on PRs targeting main (no apply)
   pull_request:
     branches:
       - main
@@ -10,7 +19,6 @@ on:
       - "terraform/modules/**"
       - ".github/workflows/terraform-workloads.yml"
 
-  # Plan + apply on push/merge to main
   push:
     branches:
       - main
@@ -27,25 +35,31 @@ permissions:
 # Only one Terraform workflow runs at a time — prevents state lock conflicts
 concurrency:
   group: terraform-state
-  cancel-in-progress: false  # queue rather than cancel  
+  cancel-in-progress: false # queue rather than cancel
+
+env:
+  TF_VERSION: "1.14.3"         # Align with required_version in versions.tf
+  TF_WORKING_DIR: terraform/envs/dev
 
 jobs:
-  # ── DEV ──────────────────────────────────────────────────────────────────
-  # PR to main : plan only (no artifact upload, no apply)
-  # Push to main: plan + upload artifact + apply
-
+  # ===========================================================================
+  # Plan Dev
+  # Runs on every PR and push to main.
+  # Validates, formats, and plans — never applies.
+  # Uploads plan artifact on push to main for apply job to consume.
+  # ===========================================================================
   plan-dev:
     name: Plan Dev
-    # Run on push to main OR on any PR targeting main
     if: github.ref == 'refs/heads/main' || github.event_name == 'pull_request'
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      # Authenticate to Azure using OIDC — no client secret needed
-      # Requires a federated credential on the App Registration for refs/heads/main
-      - name: Azure Login using OIDC
+      - name: Azure Login (OIDC)
+        # Federated credentials — no client secret needed
+        # Requires federated credential on App Registration for refs/heads/main
         uses: azure/login@v2
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
@@ -53,19 +67,18 @@ jobs:
           subscription-id: ${{ secrets.AZURE_DEV_SUBSCRIPTION_ID }}
 
       - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v4
+        uses: hashicorp/setup-terraform@v3
         with:
-          terraform_version: 1.6.6
+          terraform_version: ${{ env.TF_VERSION }}
+          terraform_wrapper: false # Required for detailed-exitcode to work correctly
 
-      # Fail fast if any .tf files are not formatted correctly
       - name: Terraform Format Check
-        working-directory: terraform/envs/dev
+        working-directory: ${{ env.TF_WORKING_DIR }}
         run: terraform fmt -check -recursive
 
-      # Backend (state) lives in the platform subscription, not the dev subscription
-      # so we pass the platform subscription ID for state access only
       - name: Terraform Init
-        working-directory: terraform/envs/dev
+        # Backend lives in platform subscription — pass platform subscription ID for state access
+        working-directory: ${{ env.TF_WORKING_DIR }}
         run: |
           terraform init \
             -backend-config="use_oidc=true" \
@@ -73,15 +86,14 @@ jobs:
             -backend-config="tenant_id=${{ secrets.AZURE_TENANT_ID }}" \
             -backend-config="subscription_id=${{ secrets.AZURE_PLATFORM_SUBSCRIPTION_ID }}"
 
-      # Validate configuration is syntactically correct and internally consistent
       - name: Terraform Validate
-        working-directory: terraform/envs/dev
+        working-directory: ${{ env.TF_WORKING_DIR }}
         run: terraform validate
 
-      # -detailed-exitcode returns 2 when changes are detected (not an error)
-      # exit 1 = real terraform error; exit 0/2 = success or changes pending — both are fine
       - name: Terraform Plan
-        working-directory: terraform/envs/dev
+        # Exit codes: 0 = no changes, 1 = error, 2 = changes present
+        # Exit 1 = real error; exit 0/2 = success — both are acceptable
+        working-directory: ${{ env.TF_WORKING_DIR }}
         run: |
           terraform plan -detailed-exitcode -out=tfplan
           exit_code=$?
@@ -91,29 +103,38 @@ jobs:
           TF_VAR_dev_subscription_id:      ${{ secrets.AZURE_DEV_SUBSCRIPTION_ID }}
           TF_VAR_platform_subscription_id: ${{ secrets.AZURE_PLATFORM_SUBSCRIPTION_ID }}
 
-      # Only upload the plan artifact on push to main — apply-dev will download and use it
-      # Skipped on PRs since we don't apply from PRs
       - name: Upload Plan Artifact
+        # Only upload on push to main — apply job will consume this exact plan file
+        # Skipped on PRs since we never apply from PRs
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
         uses: actions/upload-artifact@v4
         with:
           name: tfplan-dev
-          path: terraform/envs/dev/tfplan
+          path: ${{ env.TF_WORKING_DIR }}/tfplan
           retention-days: 1
 
+  # ===========================================================================
+  # Apply Dev
+  # Runs only on push to main after plan succeeds.
+  # No manual approval — dev auto-deploys on merge to main.
+  # Applies exactly the plan file produced by the plan job — no drift.
+  # ===========================================================================
   apply-dev:
     name: Apply Dev
-    needs: plan-dev  # must pass plan before apply runs
-    # Only apply on push to main — never on PRs
+    needs: plan-dev
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     runs-on: ubuntu-latest
-    environment: workload-dev  # no required reviewers — auto deploys to dev
+
+    # No required reviewers — dev auto-deploys
+    # Add reviewers in GitHub Settings → Environments → workload-dev for test/prod
+    environment: workload-dev
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      # Re-authenticate for the apply job — each job gets a fresh runner
-      - name: Azure Login using OIDC
+      - name: Azure Login (OIDC)
+        # OIDC tokens are job-scoped — must re-authenticate in every job
         uses: azure/login@v2
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
@@ -121,13 +142,14 @@ jobs:
           subscription-id: ${{ secrets.AZURE_DEV_SUBSCRIPTION_ID }}
 
       - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v4
+        uses: hashicorp/setup-terraform@v3
         with:
-          terraform_version: 1.6.6
+          terraform_version: ${{ env.TF_VERSION }}
+          terraform_wrapper: false
 
-      # Re-init required — each job runs on a fresh runner with no local state
       - name: Terraform Init
-        working-directory: terraform/envs/dev
+        # Re-init required — each job runs on a fresh runner with no local state
+        working-directory: ${{ env.TF_WORKING_DIR }}
         run: |
           terraform init \
             -backend-config="use_oidc=true" \
@@ -135,30 +157,32 @@ jobs:
             -backend-config="tenant_id=${{ secrets.AZURE_TENANT_ID }}" \
             -backend-config="subscription_id=${{ secrets.AZURE_PLATFORM_SUBSCRIPTION_ID }}"
 
-      # Download the exact plan that was reviewed in plan-dev — ensures apply matches plan
       - name: Download Plan Artifact
+        # Downloads exactly the plan produced by plan-dev
+        # Guarantees apply matches what was planned — no drift
         uses: actions/download-artifact@v4
         with:
           name: tfplan-dev
-          path: terraform/envs/dev
+          path: ${{ env.TF_WORKING_DIR }}
 
-      # Apply the saved plan — -auto-approve is safe here because the plan was already reviewed
       - name: Terraform Apply
-        working-directory: terraform/envs/dev
+        # -auto-approve is safe here — plan was already reviewed in plan-dev
+        working-directory: ${{ env.TF_WORKING_DIR }}
         run: terraform apply -auto-approve tfplan
         env:
           TF_VAR_dev_subscription_id:      ${{ secrets.AZURE_DEV_SUBSCRIPTION_ID }}
           TF_VAR_platform_subscription_id: ${{ secrets.AZURE_PLATFORM_SUBSCRIPTION_ID }}
 
-  # ── QA & PROD ─────────────────────────────────────────────────────────────
-  # Uncomment when terraform/envs/qa and terraform/envs/prod are ready
-  # Also add org secrets: AZURE_QA_SUBSCRIPTION_ID, AZURE_PROD_SUBSCRIPTION_ID
-  # Also create GitHub environments: workload-qa, workload-prod (with required reviewers)
+  # ===========================================================================
+  # Test & Prod — Uncomment when environments are ready
+  # Also add org secrets: AZURE_TEST_SUBSCRIPTION_ID, AZURE_PROD_SUBSCRIPTION_ID
+  # Also create GitHub environments: workload-test, workload-prod (with required reviewers)
+  # ===========================================================================
 
-  # plan-qa:
+  # plan-test:
   #   ...
 
-  # apply-qa:
+  # apply-test:
   #   ...
 
   # plan-prod:

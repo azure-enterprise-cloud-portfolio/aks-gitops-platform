@@ -1,26 +1,15 @@
-/*
-  Read Platform remote state
+# =============================================================================
+# Dev Environment
+# Deploys dev workload resources and connects to shared platform services.
+# All resource names are derived from locals.tf — do not hardcode names here.
+# Platform outputs are consumed via data.tf (terraform_remote_state).
+# =============================================================================
 
-  - Gets Hub VNet ID
-  - Gets ACR ID
-  - Enables Dev to consume shared platform services
-*/
-
-data "terraform_remote_state" "platform" {
-  backend = "azurerm"
-
-  config = {
-    resource_group_name  = "rg-cs-tfstate-cac"
-    storage_account_name = "stcstfstatecac001"
-    container_name       = "tfstate"
-    key                  = "platform/terraform.tfstate" # ← platform state, not dev
-  }
-}
-
-/*
-  Dev Resource Group
-*/
-
+# =============================================================================
+# Resource Group
+# Logical container for all dev environment resources.
+# Deployed into the dev subscription via azurerm.dev provider alias.
+# =============================================================================
 module "rg" {
   source = "../../modules/resource-group"
 
@@ -28,18 +17,19 @@ module "rg" {
     azurerm = azurerm.dev
   }
 
-  name     = "rg-cs-workload-dev-cac"
+  name     = local.names.resource_group # rg-cs-dev-cac
   location = var.location
   tags     = var.tags
 }
 
-/*
-  Dev Spoke Network
-
-  - Hosts AKS subnet
-  - Peered with Platform Hub VNet
-*/
-
+# =============================================================================
+# Dev Spoke Network
+# Spoke VNet peered with the platform hub VNet.
+# Hosts the AKS node subnet — isolated from platform shared services.
+#
+# Subnets:
+#   snet-aks-dev - AKS node pools and pod networking (10.20.1.0/24)
+# =============================================================================
 module "network" {
   source = "../../modules/network"
 
@@ -47,13 +37,14 @@ module "network" {
     azurerm = azurerm.dev
   }
 
-  vnet_name           = "vnet-cs-spoke-dev-cac"
+  vnet_name           = local.names.vnet # vnet-cs-spoke-dev-cac
   location            = module.rg.location
   resource_group_name = module.rg.name
   address_space       = ["10.20.0.0/16"]
 
   subnets = {
-    snet-aks-dev = {
+    # AKS node pools — sized for node count + pod CIDR overhead
+    (local.names.subnets.aks) = {
       address_prefixes = ["10.20.1.0/24"]
     }
   }
@@ -61,13 +52,17 @@ module "network" {
   tags = var.tags
 }
 
-/*
-  AKS Cluster
-
-  - Deployed into Dev spoke subnet
-  - Uses Azure CNI networking
-*/
-
+# =============================================================================
+# AKS Cluster
+# Kubernetes cluster for dev workloads.
+# Deployed into the AKS subnet using Azure CNI networking.
+# Pulls images from shared platform ACR via AcrPull role assignment below.
+#
+# node_count                 : kept low for dev — scale up for test/prod
+# vm_size                    : Standard_DS2_v2 sufficient for dev workloads
+# log_analytics_workspace_id : sourced from platform remote state — reuses
+#                              shared platform Log Analytics workspace
+# =============================================================================
 module "aks" {
   source = "../../modules/aks"
 
@@ -75,24 +70,28 @@ module "aks" {
     azurerm = azurerm.dev
   }
 
-  name                = "aks-cs-dev-cac"
+  name                = local.names.aks # aks-cs-dev-cac-001
   location            = module.rg.location
   resource_group_name = module.rg.name
-  dns_prefix          = "aks-cs-dev-cac"
-  subnet_id           = module.network.subnet_ids["snet-aks-dev"]
+  dns_prefix          = local.names.aks
+  subnet_id           = module.network.subnet_ids[local.names.subnets.aks]
 
   node_count = 2
   vm_size    = "Standard_DS2_v2"
 
+  # Sourced from platform remote state — reuses shared Log Analytics workspace
+  # avoids deploying a separate workspace per environment
+  log_analytics_workspace_id = data.terraform_remote_state.platform.outputs.law_workspace_id
+
   tags = var.tags
 }
 
-/*
-  Spoke-to-Hub Peering
-
-  - Created from Dev subscription side
-*/
-
+# =============================================================================
+# Spoke-to-Hub VNet Peering
+# Initiates peering from the dev spoke to the platform hub.
+# Created in the dev subscription — allows dev workloads to reach
+# shared platform services (ACR private endpoint, Key Vault, etc.).
+# =============================================================================
 module "spoke_to_hub_peering" {
   source = "../../modules/vnet-peering"
 
@@ -106,12 +105,12 @@ module "spoke_to_hub_peering" {
   remote_virtual_network_id = data.terraform_remote_state.platform.outputs.hub_vnet_id
 }
 
-/*
-  Hub-to-Spoke Peering
-
-  - Created from Platform subscription side
-*/
-
+# =============================================================================
+# Hub-to-Spoke VNet Peering
+# Completes the peering from the platform hub back to the dev spoke.
+# Created in the platform subscription — required for bidirectional
+# traffic flow between hub and spoke.
+# =============================================================================
 module "hub_to_spoke_peering" {
   source = "../../modules/vnet-peering"
 
@@ -125,12 +124,12 @@ module "hub_to_spoke_peering" {
   remote_virtual_network_id = module.network.vnet_id
 }
 
-/*
-  ACR Pull Permission
-
-  - Grants AKS kubelet identity permission to pull images from shared ACR
-*/
-
+# =============================================================================
+# ACR Pull Role Assignment
+# Grants the AKS kubelet identity permission to pull images from the
+# shared platform ACR. Scoped to the ACR resource in the platform subscription.
+# Role: AcrPull — read-only image pull, no push or admin access.
+# =============================================================================
 resource "azurerm_role_assignment" "aks_acr_pull" {
   provider = azurerm.platform
 

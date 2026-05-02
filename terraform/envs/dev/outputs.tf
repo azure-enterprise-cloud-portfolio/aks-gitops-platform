@@ -1,12 +1,9 @@
-# terraform/envs/dev/outputs.tf
-
-/*
-  Dev Environment Outputs
-
-  - Exposes only resources owned and managed by the Dev environment
-  - ACR and Key Vault live in the Platform env — access them via:
-      data.terraform_remote_state.platform.outputs.<output_name>
-*/
+# =============================================================================
+# Dev Environment Outputs
+# Exposes only resources owned and managed by the dev environment.
+# ACR and Key Vault live in the platform env — access them via:
+#   data.terraform_remote_state.platform.outputs.<output_name>
+# =============================================================================
 
 # ── Resource Group ────────────────────────────────────────────────────────────
 
@@ -36,7 +33,7 @@ output "subnet_ids" {
 
 output "aks_id" {
   description = "AKS cluster resource ID"
-  value       = module.aks.id # ← was module.aks.aks_id
+  value       = module.aks.id
 }
 
 output "aks_kubelet_identity_object_id" {

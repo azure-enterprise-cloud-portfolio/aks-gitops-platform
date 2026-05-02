@@ -1,11 +1,16 @@
-/*
-  AKS Module
-
-  - Creates Azure Kubernetes Service cluster
-  - Uses system-assigned managed identity
-  - Enables Azure RBAC-ready enterprise pattern
-*/
-
+# =============================================================================
+# AKS Module
+# Creates an Azure Kubernetes Service cluster with a system node pool.
+# Uses SystemAssigned managed identity — no service principal to rotate.
+# Azure CNI networking integrates directly with the spoke VNet subnet.
+#
+# Security defaults:
+#   role_based_access_control_enabled = true  — RBAC always on
+#   network_policy = "azure"                  — pod-level traffic control
+#   identity.type  = "SystemAssigned"         — no credential management
+#   local_account_disabled = true             — no local admin, Azure AD only
+#   azure_policy_enabled = true               — governance policies enforced
+# =============================================================================
 resource "azurerm_kubernetes_cluster" "this" {
   name                = var.name
   location            = var.location
@@ -13,23 +18,61 @@ resource "azurerm_kubernetes_cluster" "this" {
   dns_prefix          = var.dns_prefix
   kubernetes_version  = var.kubernetes_version
 
+  # Disables local admin account — all access via Azure AD and RBAC only
+  local_account_disabled = true
+
+  # Automatic patch upgrades — keeps cluster secure without manual intervention
+  automatic_upgrade_channel = var.upgrade_channel
+
   default_node_pool {
-    name           = "system"
-    node_count     = var.node_count
-    vm_size        = var.vm_size
-    vnet_subnet_id = var.subnet_id
+    name            = "system"
+    vm_size         = var.vm_size
+    vnet_subnet_id  = var.subnet_id
+    os_disk_size_gb = var.os_disk_size_gb
+    os_sku          = var.os_sku
+
+    # Minimum 50 pods per node — required for Azure CNI pod density
+    max_pods = var.max_pods
+
+    # Restricts system node pool to critical system pods only.
+    # User workloads are scheduled on separate user node pools.
+    only_critical_addons_enabled = true
+
+    # Auto-scaling — enabled for test/prod, disabled for dev
+    # When enabled, node_count is managed by the autoscaler
+    auto_scaling_enabled = var.enable_auto_scaling
+    node_count           = var.enable_auto_scaling ? null : var.node_count
+    min_count            = var.enable_auto_scaling ? var.min_count : null
+    max_count            = var.enable_auto_scaling ? var.max_count : null
   }
 
+  # SystemAssigned identity — Azure manages the credential lifecycle.
+  # The kubelet identity is used for AcrPull role assignments.
   identity {
     type = "SystemAssigned"
   }
 
   network_profile {
-    network_plugin    = "azure"
-    network_policy    = "azure"
-    load_balancer_sku = "standard"
+    network_plugin    = "azure"    # Azure CNI — pods get VNet IPs directly
+    network_policy    = "azure"    # Enforces pod-level network policies
+    load_balancer_sku = "standard" # Required for availability zones and SLA
   }
 
+  # Azure Policy add-on — enforces governance policies on cluster workloads
+  azure_policy_enabled = true
+
+  # OMS agent — forwards logs and metrics to Log Analytics workspace
+  oms_agent {
+    log_analytics_workspace_id = var.log_analytics_workspace_id
+  }
+
+  # Secrets Store CSI Driver — mounts Key Vault secrets as pod volumes
+  # secret_rotation_enabled — autorotates secrets without pod restart
+  key_vault_secrets_provider {
+    secret_rotation_enabled = true
+  }
+
+  # RBAC is always enabled — access is controlled via Azure AD and role assignments
   role_based_access_control_enabled = true
 
   tags = var.tags

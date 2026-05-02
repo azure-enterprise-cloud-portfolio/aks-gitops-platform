@@ -1,21 +1,41 @@
-# ACR
-output "acr_id" {
-  description = "Container registry ID — used to grant pull access to AKS clusters"
-  value       = module.acr.acr_id # was: module.acr.id
+# Name of the platform resource group.
+# Referenced by spoke environments via terraform_remote_state.
+output "resource_group_name" {
+  value = module.rg.name
 }
 
+# Full VNet resource ID.
+# Used by spoke environments to establish VNet peering back to the hub.
+output "vnet_id" {
+  value = module.network.vnet_id
+}
+
+# Map of subnet name -> subnet ID for all subnets in the hub VNet.
+# Spoke workloads reference snet-private-endpoints when deploying their own PEs.
+output "subnet_ids" {
+  value = module.network.subnet_ids
+}
+
+# ACR login server FQDN (e.g. acrcsplatformcac001.azurecr.io).
+# Used in pipeline image push/pull steps and Kubernetes imagePullSecrets.
 output "acr_login_server" {
-  description = "Container registry login server URL"
-  value       = module.acr.login_server
+  value = module.acr.login_server
 }
 
-# Key Vault
+# ACR resource ID.
+# Used to scope AcrPull / AcrPush role assignments in spoke environments.
+output "acr_id" {
+  value = module.acr.id
+}
+
+# Key Vault resource ID.
+# Used by spoke environments to scope access policies or RBAC assignments.
 output "key_vault_id" {
-  description = "Key Vault ID — used to grant access policies to spoke workloads"
-  value       = module.kv.key_vault_id # was: module.kv.id
+  value = module.kv.id
 }
 
+# Key Vault URI (e.g. https://kv-cs-platform-cac-001.vault.azure.net/).
+# Used by applications and CSI drivers to reference secrets by URI.
 output "key_vault_uri" {
-  description = "Key Vault URI"
-  value       = module.kv.key_vault_uri # was: module.kv.uri
+  value = module.kv.vault_uri
 }
