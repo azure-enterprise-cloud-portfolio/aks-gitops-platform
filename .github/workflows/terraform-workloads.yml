@@ -6,7 +6,7 @@ on:
     branches:
       - main
     paths:
-      - "terraform/envs/**"
+      - "terraform/envs/dev/**"
       - "terraform/modules/**"
       - ".github/workflows/terraform-workloads.yml"
 
@@ -15,7 +15,7 @@ on:
     branches:
       - main
     paths:
-      - "terraform/envs/**"
+      - "terraform/envs/dev/**"
       - "terraform/modules/**"
       - ".github/workflows/terraform-workloads.yml"
 
@@ -83,7 +83,8 @@ jobs:
           if [ $exit_code -eq 1 ]; then exit 1; fi
           exit 0
         env:
-          TF_VAR_subscription_id: ${{ secrets.AZURE_DEV_SUBSCRIPTION_ID }}
+          TF_VAR_dev_subscription_id:      ${{ secrets.AZURE_DEV_SUBSCRIPTION_ID }}
+          TF_VAR_platform_subscription_id: ${{ secrets.AZURE_PLATFORM_SUBSCRIPTION_ID }}
 
       # Only upload the plan artifact on push to main — apply-dev will download and use it
       # Skipped on PRs since we don't apply from PRs
@@ -141,7 +142,8 @@ jobs:
         working-directory: terraform/envs/dev
         run: terraform apply -auto-approve tfplan
         env:
-          TF_VAR_subscription_id: ${{ secrets.AZURE_DEV_SUBSCRIPTION_ID }}
+          TF_VAR_dev_subscription_id:      ${{ secrets.AZURE_DEV_SUBSCRIPTION_ID }}
+          TF_VAR_platform_subscription_id: ${{ secrets.AZURE_PLATFORM_SUBSCRIPTION_ID }}
 
   # ── QA & PROD ─────────────────────────────────────────────────────────────
   # Uncomment when terraform/envs/qa and terraform/envs/prod are ready
