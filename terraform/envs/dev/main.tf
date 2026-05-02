@@ -13,7 +13,7 @@ data "terraform_remote_state" "platform" {
     resource_group_name  = "rg-cs-tfstate-cac"
     storage_account_name = "stcstfstatecac001"
     container_name       = "tfstate"
-    key                  = "platform/terraform.tfstate"  # ← platform state, not dev
+    key                  = "platform/terraform.tfstate" # ← platform state, not dev
   }
 }
 
