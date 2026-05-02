@@ -93,8 +93,14 @@ jobs:
 
       - name: Terraform Plan
         # Exit codes: 0 = no changes, 1 = error, 2 = changes present
+        # Exit 1 = real error — fail the pipeline
+        # Exit 0/2 = success — continue to upload and apply
         working-directory: ${{ env.TF_WORKING_DIR }}
-        run: terraform plan -detailed-exitcode -out=tfplan
+        run: |
+          terraform plan -detailed-exitcode -out=tfplan
+          exit_code=$?
+          if [ $exit_code -eq 1 ]; then exit 1; fi
+          exit 0
         env:
           TF_VAR_platform_subscription_id: ${{ secrets.AZURE_PLATFORM_SUBSCRIPTION_ID }}
 
