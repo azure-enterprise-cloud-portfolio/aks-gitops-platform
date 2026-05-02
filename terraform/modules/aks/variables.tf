@@ -48,9 +48,10 @@ variable "vm_size" {
 }
 
 variable "os_disk_size_gb" {
-  description = "OS disk size in GB for AKS nodes. 0 uses the Azure default for the selected VM size."
+  description = "OS disk size in GB for AKS nodes. Set to null to use Azure's managed default (128 GB). Minimum 30 GB for Linux nodes."
   type        = number
-  default     = 0
+  default     = null
+  nullable    = true
 }
 
 variable "os_sku" {
