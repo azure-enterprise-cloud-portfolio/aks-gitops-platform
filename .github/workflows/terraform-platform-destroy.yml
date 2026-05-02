@@ -16,13 +16,9 @@ env:
   TF_WORKING_DIR: terraform/envs/platform
 
 jobs:
-  destroy:
-    name: Terraform Destroy Platform
+  plan-destroy:
+    name: Plan Destroy
     runs-on: ubuntu-latest
-    # Manual approval gate — configure reviewers in Settings → Environments
-    environment: platform-shared
-
-    # Guard — prevents accidental destruction if wrong input
     if: github.event.inputs.confirm == 'destroy'
 
     steps:
@@ -49,8 +45,59 @@ jobs:
             -backend-config="tenant_id=${{ secrets.AZURE_TENANT_ID }}" \
             -backend-config="subscription_id=${{ secrets.AZURE_PLATFORM_SUBSCRIPTION_ID }}"
 
+      - name: Terraform Plan Destroy
+        # Shows exactly what will be destroyed before approval
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: terraform plan -destroy -out=tfplan-destroy
+        env:
+          TF_VAR_platform_subscription_id: ${{ secrets.AZURE_PLATFORM_SUBSCRIPTION_ID }}
+
+      - name: Upload Destroy Plan Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: tfplan-destroy
+          path: ${{ env.TF_WORKING_DIR }}/tfplan-destroy
+          retention-days: 1
+
+  destroy:
+    name: Terraform Destroy Platform
+    needs: plan-destroy
+    runs-on: ubuntu-latest
+    # Manual approval gate — configure reviewers in Settings → Environments
+    environment: platform-shared
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Azure Login using OIDC
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_PLATFORM_SUBSCRIPTION_ID }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: 1.6.6
+
+      - name: Terraform Init
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: |
+          terraform init \
+            -backend-config="use_oidc=true" \
+            -backend-config="client_id=${{ secrets.AZURE_CLIENT_ID }}" \
+            -backend-config="tenant_id=${{ secrets.AZURE_TENANT_ID }}" \
+            -backend-config="subscription_id=${{ secrets.AZURE_PLATFORM_SUBSCRIPTION_ID }}"
+
+      - name: Download Destroy Plan Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: tfplan-destroy
+          path: ${{ env.TF_WORKING_DIR }}
+
       - name: Terraform Destroy
         working-directory: ${{ env.TF_WORKING_DIR }}
-        run: terraform destroy -auto-approve
+        run: terraform apply -auto-approve tfplan-destroy
         env:
           TF_VAR_platform_subscription_id: ${{ secrets.AZURE_PLATFORM_SUBSCRIPTION_ID }}
