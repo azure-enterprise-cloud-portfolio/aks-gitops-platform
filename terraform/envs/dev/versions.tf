@@ -19,6 +19,7 @@ terraform {
     storage_account_name = "stcstfstatecac001"
     container_name       = "tfstate"
     key                  = "workload/dev/terraform.tfstate"
+    use_oidc             = true # ← added
   }
 
   required_providers {
@@ -35,6 +36,7 @@ terraform {
 provider "azurerm" {
   alias           = "dev"
   subscription_id = var.dev_subscription_id
+  use_oidc        = true # ← added
   features {}
 }
 
@@ -42,5 +44,6 @@ provider "azurerm" {
 provider "azurerm" {
   alias           = "platform"
   subscription_id = var.platform_subscription_id
+  use_oidc        = true # ← added
   features {}
 }
