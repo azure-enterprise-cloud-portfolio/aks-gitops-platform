@@ -1,0 +1,141 @@
+name: Terraform Workloads
+
+on:
+  pull_request:
+    branches:
+      - dev
+    paths:
+      - "terraform/envs/**"
+      - "terraform/modules/**"
+      - ".github/workflows/terraform-workloads.yml"
+
+  push:
+    branches:
+      - dev
+      - main
+    paths:
+      - "terraform/envs/**"
+      - "terraform/modules/**"
+      - ".github/workflows/terraform-workloads.yml"
+
+# OIDC auth requires id-token write; contents read for checkout
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  # ── DEV ──────────────────────────────────────────────────────────────────
+  # PR to dev: plan only | push to dev: plan + apply
+
+  plan-dev:
+    name: Plan Dev
+    if: github.ref == 'refs/heads/dev' || github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Azure Login using OIDC
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_DEV_SUBSCRIPTION_ID }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: 1.6.6
+
+      - name: Terraform Format Check
+        working-directory: terraform/envs/dev
+        run: terraform fmt -check -recursive
+
+      - name: Terraform Init
+        # Backend lives in platform subscription — use platform subscription ID for state access
+        working-directory: terraform/envs/dev
+        run: |
+          terraform init \
+            -backend-config="use_oidc=true" \
+            -backend-config="client_id=${{ secrets.AZURE_CLIENT_ID }}" \
+            -backend-config="tenant_id=${{ secrets.AZURE_TENANT_ID }}" \
+            -backend-config="subscription_id=${{ secrets.AZURE_PLATFORM_SUBSCRIPTION_ID }}"
+
+      - name: Terraform Validate
+        working-directory: terraform/envs/dev
+        run: terraform validate
+
+      - name: Terraform Plan
+        working-directory: terraform/envs/dev
+        run: terraform plan -detailed-exitcode -out=tfplan
+        env:
+          TF_VAR_subscription_id: ${{ secrets.AZURE_DEV_SUBSCRIPTION_ID }}
+
+      - name: Upload Plan Artifact
+        if: github.ref == 'refs/heads/dev' && github.event_name == 'push'
+        uses: actions/upload-artifact@v4
+        with:
+          name: tfplan-dev
+          path: terraform/envs/dev/tfplan
+          retention-days: 1
+
+  apply-dev:
+    name: Apply Dev
+    needs: plan-dev
+    if: github.ref == 'refs/heads/dev' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    environment: workload-dev  # no required reviewers — auto deploys
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Azure Login using OIDC
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_DEV_SUBSCRIPTION_ID }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: 1.6.6
+
+      - name: Terraform Init
+        # Backend lives in platform subscription — use platform subscription ID for state access
+        working-directory: terraform/envs/dev
+        run: |
+          terraform init \
+            -backend-config="use_oidc=true" \
+            -backend-config="client_id=${{ secrets.AZURE_CLIENT_ID }}" \
+            -backend-config="tenant_id=${{ secrets.AZURE_TENANT_ID }}" \
+            -backend-config="subscription_id=${{ secrets.AZURE_PLATFORM_SUBSCRIPTION_ID }}"
+
+      - name: Download Plan Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: tfplan-dev
+          path: terraform/envs/dev
+
+      - name: Terraform Apply
+        working-directory: terraform/envs/dev
+        run: terraform apply -auto-approve tfplan
+        env:
+          TF_VAR_subscription_id: ${{ secrets.AZURE_DEV_SUBSCRIPTION_ID }}
+
+  # ── QA & PROD ─────────────────────────────────────────────────────────────
+  # Uncomment when terraform/envs/qa and terraform/envs/prod are ready
+  # Also add org secrets: AZURE_QA_SUBSCRIPTION_ID, AZURE_PROD_SUBSCRIPTION_ID
+  # Also create GitHub environments: workload-qa, workload-prod (with required reviewers)
+
+  # plan-qa:
+  #   ...
+
+  # apply-qa:
+  #   ...
+
+  # plan-prod:
+  #   ...
+
+  # apply-prod:
+  #   ...

@@ -1,0 +1,56 @@
+name: Terraform Platform Destroy
+
+on:
+  workflow_dispatch:  # manual trigger only — never runs automatically
+    inputs:
+      confirm:
+        description: 'Type "destroy" to confirm destruction of platform resources'
+        required: true
+
+# OIDC auth requires id-token write; contents read for checkout
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  TF_WORKING_DIR: terraform/envs/platform
+
+jobs:
+  destroy:
+    name: Terraform Destroy Platform
+    runs-on: ubuntu-latest
+    # Manual approval gate — configure reviewers in Settings → Environments
+    environment: platform-shared
+
+    # Guard — prevents accidental destruction if wrong input
+    if: github.event.inputs.confirm == 'destroy'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Azure Login using OIDC
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_PLATFORM_SUBSCRIPTION_ID }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: 1.6.6
+
+      - name: Terraform Init
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: |
+          terraform init \
+            -backend-config="use_oidc=true" \
+            -backend-config="client_id=${{ secrets.AZURE_CLIENT_ID }}" \
+            -backend-config="tenant_id=${{ secrets.AZURE_TENANT_ID }}" \
+            -backend-config="subscription_id=${{ secrets.AZURE_PLATFORM_SUBSCRIPTION_ID }}"
+
+      - name: Terraform Destroy
+        working-directory: ${{ env.TF_WORKING_DIR }}
+        run: terraform destroy -auto-approve
+        env:
+          TF_VAR_platform_subscription_id: ${{ secrets.AZURE_PLATFORM_SUBSCRIPTION_ID }}
