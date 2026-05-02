@@ -1,8 +1,8 @@
-# terraform/envs/platform/terraform.tfvars
+# terraform/envs/dev/terraform.tfvars
 
 location = "canadacentral"
 
 tags = {
-  environment = "platform"
+  environment = "dev"
   managed_by  = "terraform"
 }
