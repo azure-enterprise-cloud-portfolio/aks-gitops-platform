@@ -20,6 +20,11 @@ permissions:
   id-token: write
   contents: read
 
+# Shared concurrency group with workloads — prevents simultaneous state lock conflicts
+concurrency:
+  group: terraform-state
+  cancel-in-progress: false  
+
 env:
   TF_WORKING_DIR: terraform/envs/platform
 

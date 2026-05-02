@@ -24,6 +24,11 @@ permissions:
   id-token: write
   contents: read
 
+# Only one Terraform workflow runs at a time — prevents state lock conflicts
+concurrency:
+  group: terraform-state
+  cancel-in-progress: false  # queue rather than cancel  
+
 jobs:
   # ── DEV ──────────────────────────────────────────────────────────────────
   # PR to main : plan only (no artifact upload, no apply)
