@@ -55,3 +55,13 @@ variable "platform_subscription_id" {
   type        = string
   sensitive   = true
 }
+
+# -----------------------------------------------------------------------------
+# Dev Service Principal
+# Display name of the dev SP — resolved dynamically from Azure AD.
+# Used to grant User Access Administrator on ACR for AcrPull role assignment.
+# -----------------------------------------------------------------------------
+variable "dev_sp_name" {
+  description = "Display name of the dev service principal — used to resolve object ID dynamically from Azure AD"
+  type        = string
+}
