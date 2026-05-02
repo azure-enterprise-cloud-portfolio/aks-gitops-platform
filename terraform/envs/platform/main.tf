@@ -92,7 +92,7 @@ module "kv" {
 # SP is resolved dynamically via data.azuread_service_principal.dev_sp.
 # =============================================================================
 resource "azurerm_role_assignment" "sp_uaa_acr" {
-  scope                = module.acr.acr_id
+  scope                = module.acr.id
   role_definition_name = "User Access Administrator"
   principal_id         = data.azuread_service_principal.dev_sp.object_id
 }
