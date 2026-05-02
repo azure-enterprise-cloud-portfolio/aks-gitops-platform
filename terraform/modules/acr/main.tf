@@ -6,9 +6,9 @@
 #
 # Security defaults:
 #   admin_enabled             = false — RBAC only, no username/password access
-#   trust_policy_enabled      = false — enable in prod for signed images only
-#   quarantine_policy_enabled = false — enable in prod for image scanning
-#   retention_policy_in_days  = 7    — cleanup untagged manifests automatically
+#   trust_policy_enabled      = false — enable in prod with Premium SKU
+#   quarantine_policy_enabled = false — enable in prod with Premium SKU
+#   retention_policy_in_days  = 7    — Premium SKU only, null on Standard/Basic
 # =============================================================================
 resource "azurerm_container_registry" "this" {
   name                = var.name
@@ -20,16 +20,11 @@ resource "azurerm_container_registry" "this" {
   # Azure RBAC (AcrPull / AcrPush role assignments)
   admin_enabled = false
 
-  # Removes untagged manifests after 7 days — prevents registry bloat
-  retention_policy_in_days = var.retention_policy_in_days
-
-  # Content trust — only signed images can be pushed to the registry
-  # Requires Premium SKU — keep false for dev, enable for prod
-  trust_policy_enabled = var.trust_policy_enabled
-
-  # Quarantine — images must be scanned and verified before use
-  # Requires Premium SKU — keep false for dev, enable for prod
-  quarantine_policy_enabled = var.quarantine_policy_enabled
+  # Retention, trust and quarantine policies require Premium SKU.
+  # Conditionally applied — safe to use on Standard/Basic without errors.
+  retention_policy_in_days  = var.sku == "Premium" ? var.retention_policy_in_days : null
+  trust_policy_enabled      = var.sku == "Premium" ? var.trust_policy_enabled : false
+  quarantine_policy_enabled = var.sku == "Premium" ? var.quarantine_policy_enabled : false
 
   tags = var.tags
 }
