@@ -41,3 +41,10 @@ tags = {
   cost_center = "cc-1234"       # Replace with your actual cost center code
   owner       = "platform-team" # Replace with your team or distribution list
 }
+
+# -----------------------------------------------------------------------------
+# Dev Service Principal
+# Used to grant User Access Administrator on ACR — allows dev SP to assign
+# AcrPull role to AKS kubelet identity in the platform subscription.
+# -----------------------------------------------------------------------------
+dev_sp_name = "sp-github-aks-platform"

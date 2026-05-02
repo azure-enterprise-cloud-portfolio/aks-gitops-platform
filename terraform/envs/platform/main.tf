@@ -83,3 +83,16 @@ module "kv" {
   location            = module.rg.location
   tags                = var.tags
 }
+
+# =============================================================================
+# User Access Administrator — Dev SP on ACR
+# Grants the dev SP permission to assign AcrPull role on the shared ACR.
+# Required for Terraform to create role assignments in the platform subscription.
+# Scoped to ACR only — least privilege, no broader subscription access.
+# SP is resolved dynamically via data.azuread_service_principal.dev_sp.
+# =============================================================================
+resource "azurerm_role_assignment" "sp_uaa_acr" {
+  scope                = module.acr.acr_id
+  role_definition_name = "User Access Administrator"
+  principal_id         = data.azuread_service_principal.dev_sp.object_id
+}

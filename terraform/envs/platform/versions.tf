@@ -36,10 +36,14 @@ terraform {
       source  = "hashicorp/azurerm"
       version = "~> 4.0" # Allows 4.x minor/patch updates, blocks 5.x breaking changes
     }
+    azuread = {
+      source  = "hashicorp/azuread"
+      version = "~> 3.0" # Required for azuread_service_principal data source
+    }
   }
 }
 
-# ── Provider ──────────────────────────────────────────────────────────────────
+# ── Providers ─────────────────────────────────────────────────────────────────
 
 # =============================================================================
 # Provider: Platform Subscription
@@ -51,4 +55,14 @@ provider "azurerm" {
   subscription_id = var.platform_subscription_id
   use_oidc        = true
   features {}
+}
+
+# =============================================================================
+# Provider: Azure AD
+# Used to look up the dev service principal dynamically — avoids hardcoding
+# object IDs. Inherits OIDC authentication from the pipeline service principal.
+# Ensure the SP has Directory.Read.All in Azure AD.
+# =============================================================================
+provider "azuread" {
+  use_oidc = true
 }
