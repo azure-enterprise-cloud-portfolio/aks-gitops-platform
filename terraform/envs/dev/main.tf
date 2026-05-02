@@ -81,7 +81,7 @@ module "aks" {
 
   # Sourced from platform remote state — reuses shared Log Analytics workspace
   # avoids deploying a separate workspace per environment
-  log_analytics_workspace_id = data.terraform_remote_state.platform.outputs.law_workspace_id
+  # log_analytics_workspace_id = data.terraform_remote_state.platform.outputs.law_workspace_id
 
   tags = var.tags
 }

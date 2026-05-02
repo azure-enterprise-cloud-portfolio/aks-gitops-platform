@@ -105,10 +105,10 @@ variable "upgrade_channel" {
 
 # ── Monitoring ────────────────────────────────────────────────────────────────
 
-variable "log_analytics_workspace_id" {
-  description = "Log Analytics workspace ID — used by OMS agent to forward AKS logs and metrics to the platform workspace"
-  type        = string
-}
+# variable "log_analytics_workspace_id" {
+#  description = "Log Analytics workspace ID — used by OMS agent to forward AKS logs and metrics to the platform workspace"
+#  type        = string
+#}
 
 # ── Tags ──────────────────────────────────────────────────────────────────────
 

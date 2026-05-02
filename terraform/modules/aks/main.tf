@@ -62,9 +62,9 @@ resource "azurerm_kubernetes_cluster" "this" {
   azure_policy_enabled = true
 
   # OMS agent — forwards logs and metrics to Log Analytics workspace
-  oms_agent {
-    log_analytics_workspace_id = var.log_analytics_workspace_id
-  }
+  # oms_agent {
+  #   log_analytics_workspace_id = var.log_analytics_workspace_id
+  # }
 
   # Secrets Store CSI Driver — mounts Key Vault secrets as pod volumes
   # secret_rotation_enabled — autorotates secrets without pod restart

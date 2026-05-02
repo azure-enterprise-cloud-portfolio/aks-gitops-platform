@@ -72,7 +72,7 @@ output "key_vault_uri" {
 }
 
 # Log Analytics workspace ID — used by AKS OMS agent in dev
-output "law_workspace_id" {
-  description = "Log Analytics workspace ID — consumed by dev AKS OMS agent via remote state"
-  value       = module.law.workspace_id
-}
+# output "law_workspace_id" {
+#  description = "Log Analytics workspace ID — consumed by dev AKS OMS agent via remote state"
+#  value       = module.law.workspace_id
+# }
