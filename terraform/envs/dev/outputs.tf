@@ -36,7 +36,7 @@ output "subnet_ids" {
 
 output "aks_id" {
   description = "AKS cluster resource ID"
-  value       = module.aks.aks_id
+  value       = module.aks.id  # ← was module.aks.aks_id
 }
 
 output "aks_kubelet_identity_object_id" {
