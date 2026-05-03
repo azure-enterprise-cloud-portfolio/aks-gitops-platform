@@ -167,3 +167,17 @@ resource "azurerm_role_assignment" "aks_cluster_admin" {
   role_definition_name = "Azure Kubernetes Service Cluster Admin Role"
   principal_id         = data.azuread_client_config.current.object_id
 }
+
+# =============================================================================
+# User Access Administrator — SP on AKS
+# Grants the SP permission to assign roles on the AKS cluster.
+# Required for Terraform to create role assignments scoped to AKS.
+# Scoped to AKS only — least privilege.
+# Bootstrap: grant manually first via CLI, then import into Terraform state.
+# =============================================================================
+resource "azurerm_role_assignment" "sp_uaa_aks" {
+  provider             = azurerm.dev
+  scope                = module.aks.id
+  role_definition_name = "User Access Administrator"
+  principal_id         = data.azuread_service_principal.dev_sp.object_id
+}

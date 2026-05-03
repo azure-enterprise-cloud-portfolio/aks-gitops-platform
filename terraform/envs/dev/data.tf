@@ -36,3 +36,13 @@ data "azuread_group" "aks_admins" {
 # admin group for cluster-admin access via kubectl.
 # =============================================================================
 data "azuread_client_config" "current" {}
+
+# =============================================================================
+# Dev SP Lookup
+# Resolves the SP object ID dynamically by display name.
+# Avoids hardcoding object IDs — used to grant User Access Administrator
+# on AKS cluster for role assignment creation by Terraform.
+# =============================================================================
+data "azuread_service_principal" "dev_sp" {
+  display_name = var.dev_sp_name
+}
