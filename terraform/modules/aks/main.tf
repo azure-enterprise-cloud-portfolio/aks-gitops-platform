@@ -86,3 +86,35 @@ resource "azurerm_kubernetes_cluster" "this" {
 
   tags = var.tags
 }
+
+# =============================================================================
+# User Node Pool
+# Runs user workloads — separated from the system node pool.
+# system node pool: critical addons only (coredns, azure-policy etc.)
+# user node pool:   all application workloads (nginx, apps, services etc.)
+#
+# Only created when enable_user_node_pool = true — allows dev to opt-in
+# while test/prod always have a user node pool.
+# =============================================================================
+resource "azurerm_kubernetes_cluster_node_pool" "user" {
+  count = var.enable_user_node_pool ? 1 : 0
+
+  name                  = "user"
+  kubernetes_cluster_id = azurerm_kubernetes_cluster.this.id
+  vm_size               = var.user_vm_size
+  vnet_subnet_id        = var.subnet_id
+  os_sku                = var.os_sku
+  os_disk_size_gb       = var.os_disk_size_gb
+  mode                  = "User" # Allows user workloads to be scheduled here
+
+  # Minimum 50 pods per node — required for Azure CNI pod density
+  max_pods = var.max_pods
+
+  # Auto-scaling — enabled for test/prod, disabled for dev
+  auto_scaling_enabled = var.enable_auto_scaling
+  node_count           = var.enable_auto_scaling ? null : var.user_node_count
+  min_count            = var.enable_auto_scaling ? var.min_count : null
+  max_count            = var.enable_auto_scaling ? var.max_count : null
+
+  tags = var.tags
+}

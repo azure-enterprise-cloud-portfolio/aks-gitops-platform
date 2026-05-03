@@ -91,6 +91,26 @@ variable "max_count" {
   default     = 5
 }
 
+# ── User Node Pool ────────────────────────────────────────────────────────────
+
+variable "enable_user_node_pool" {
+  description = "Enable a dedicated user node pool for application workloads. When false, only the system node pool is created."
+  type        = bool
+  default     = true
+}
+
+variable "user_node_count" {
+  description = "Number of nodes in the user node pool. Ignored when enable_auto_scaling = true."
+  type        = number
+  default     = 1
+}
+
+variable "user_vm_size" {
+  description = "VM size for user node pool nodes (e.g. Standard_DS2_v2 for dev, Standard_D4s_v3 for prod)"
+  type        = string
+  default     = "Standard_DS2_v2"
+}
+
 # ── Upgrades ──────────────────────────────────────────────────────────────────
 
 variable "upgrade_channel" {

@@ -58,9 +58,12 @@ module "network" {
 # Deployed into the AKS subnet using Azure CNI networking.
 # Pulls images from shared platform ACR via AcrPull role assignment below.
 #
-# node_count                 : kept low for dev — scale up for test/prod
-# vm_size                    : Standard_DS2_v2 sufficient for dev workloads
-# admin_group_object_ids     : resolved dynamically from AAD group via data.tf
+# node_count             : kept low for dev — scale up for test/prod
+# vm_size               : Standard_DS2_v2 sufficient for dev workloads
+# admin_group_object_ids : resolved dynamically from AAD group via data.tf
+# enable_user_node_pool  : dedicated user node pool for application workloads
+# user_node_count        : 1 node sufficient for dev workloads
+# user_vm_size          : Standard_DS2_v2 sufficient for dev workloads
 # log_analytics_workspace_id : sourced from platform remote state — reuses
 #                              shared platform Log Analytics workspace
 # =============================================================================
@@ -79,6 +82,12 @@ module "aks" {
 
   node_count = 2
   vm_size    = "Standard_DS2_v2"
+
+  # User node pool — runs application workloads
+  # system node pool is restricted to critical addons only
+  enable_user_node_pool = true
+  user_node_count       = 1
+  user_vm_size          = "Standard_DS2_v2"
 
   # AAD admin group — resolved dynamically from Azure AD via data.azuread_group
   # grants cluster-admin access to the AKS admins group
