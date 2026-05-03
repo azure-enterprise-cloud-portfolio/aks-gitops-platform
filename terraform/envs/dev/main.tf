@@ -153,3 +153,16 @@ resource "azuread_group_member" "aks_admin" {
   group_object_id  = data.azuread_group.aks_admins.object_id
   member_object_id = data.azuread_client_config.current.object_id
 }
+
+# =============================================================================
+# AKS Cluster Admin Role Assignment
+# Grants the current user Azure Kubernetes Service Cluster Admin Role.
+# Required when azure_rbac_enabled = true — AAD group membership alone
+# is not sufficient, Azure RBAC controls cluster access.
+# Scoped to the AKS cluster — least privilege.
+# =============================================================================
+resource "azurerm_role_assignment" "aks_cluster_admin" {
+  scope                = module.aks.id
+  role_definition_name = "Azure Kubernetes Service Cluster Admin Role"
+  principal_id         = data.azuread_client_config.current.object_id
+}
