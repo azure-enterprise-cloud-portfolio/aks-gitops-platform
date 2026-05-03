@@ -142,3 +142,14 @@ resource "azurerm_role_assignment" "aks_acr_pull" {
   role_definition_name = "AcrPull"
   principal_id         = module.aks.kubelet_identity_object_id
 }
+
+# =============================================================================
+# AAD Group Membership
+# Adds the current signed-in user to the AKS admin group dynamically.
+# Resolved from the OIDC token at plan time — no hardcoded object IDs.
+# Grants cluster-admin access to kubectl via Azure AD group membership.
+# =============================================================================
+resource "azuread_group_member" "aks_admin" {
+  group_object_id  = data.azuread_group.aks_admins.id
+  member_object_id = data.azuread_client_config.current.object_id
+}

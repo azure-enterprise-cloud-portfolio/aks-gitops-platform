@@ -28,3 +28,11 @@ data "azuread_group" "aks_admins" {
   display_name     = "admin"
   security_enabled = true
 }
+
+# =============================================================================
+# Current User Lookup
+# Resolves the signed-in user object ID dynamically from the OIDC token.
+# Avoids hardcoding object IDs — used to add the current user to the AKS
+# admin group for cluster-admin access via kubectl.
+# =============================================================================
+data "azuread_client_config" "current" {}
