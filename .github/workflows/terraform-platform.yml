@@ -171,17 +171,6 @@ jobs:
           name: tfplan-platform
           path: ${{ env.TF_WORKING_DIR }}
 
-      - name: Import Role Assignment (one-time bootstrap)
-        # Imports the manually created role assignment into Terraform state.
-        # || true ensures pipeline continues even if already imported.
-        # REMOVE THIS STEP after first successful apply.
-        working-directory: ${{ env.TF_WORKING_DIR }}
-        run: |
-          terraform import azurerm_role_assignment.sp_uaa_acr \
-            /subscriptions/0f6c7caf-02c3-42b0-9ac6-38675a112685/resourceGroups/rg-cs-platform-cac/providers/Microsoft.ContainerRegistry/registries/acrcsplatformcac001/providers/Microsoft.Authorization/roleAssignments/4cce0a11-ce76-4ec9-ae26-f501d4f544d2 || true
-        env:
-          TF_VAR_platform_subscription_id: ${{ secrets.AZURE_PLATFORM_SUBSCRIPTION_ID }}
-
       - name: Terraform Apply
         working-directory: ${{ env.TF_WORKING_DIR }}
         run: terraform apply -auto-approve tfplan
