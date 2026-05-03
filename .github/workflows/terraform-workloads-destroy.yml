@@ -93,6 +93,7 @@ jobs:
         env:
           TF_VAR_dev_subscription_id:      ${{ secrets.AZURE_DEV_SUBSCRIPTION_ID }}
           TF_VAR_platform_subscription_id: ${{ secrets.AZURE_PLATFORM_SUBSCRIPTION_ID }}
+          TF_VAR_dev_sp_name:              "sp-github-aks-platform"
 
       - name: Upload Destroy Plan Artifact
         uses: actions/upload-artifact@v4
@@ -161,3 +162,4 @@ jobs:
         env:
           TF_VAR_dev_subscription_id:      ${{ secrets.AZURE_DEV_SUBSCRIPTION_ID }}
           TF_VAR_platform_subscription_id: ${{ secrets.AZURE_PLATFORM_SUBSCRIPTION_ID }}
+          TF_VAR_dev_sp_name:              "sp-github-aks-platform"
