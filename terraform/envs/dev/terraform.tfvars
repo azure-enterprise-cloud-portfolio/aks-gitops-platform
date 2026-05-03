@@ -41,3 +41,10 @@ tags = {
   cost_center = "cc-1234"  # Replace with your actual cost center code
   owner       = "dev-team" # Replace with your team or distribution list
 }
+
+# -----------------------------------------------------------------------------
+# Service Principal
+# Display name of the SP running Terraform in GitHub Actions.
+# Used to grant User Access Administrator on AKS for role assignment creation.
+# -----------------------------------------------------------------------------
+dev_sp_name = "sp-github-aks-platform"
