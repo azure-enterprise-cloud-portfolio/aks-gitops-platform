@@ -162,6 +162,7 @@ resource "azuread_group_member" "aks_admin" {
 # Scoped to the AKS cluster — least privilege.
 # =============================================================================
 resource "azurerm_role_assignment" "aks_cluster_admin" {
+  provider             = azurerm.dev
   scope                = module.aks.id
   role_definition_name = "Azure Kubernetes Service Cluster Admin Role"
   principal_id         = data.azuread_client_config.current.object_id
